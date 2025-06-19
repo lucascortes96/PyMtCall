@@ -1,4 +1,4 @@
-# SnapATAC Tools
+# PyMtCall
 
 This package provides functions for efficient single-cell ATAC-seq variant calling and integration with Scanpy/AnnData workflows.
 
