@@ -1,6 +1,6 @@
 # PyMtCall
 
-This package provides functions for efficient single-cell ATAC-seq variant calling and integration with Scanpy/AnnData workflows.
+This package provides functions for efficient single-cell ATAC-seq mitchondrial variant calling and integration with Scanpy/AnnData workflows.
 
 ## Installation
 
