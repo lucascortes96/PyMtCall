@@ -333,4 +333,10 @@ def process_and_integrate_variants(input_folder, adata, vaf_layer_name="vaf", su
     # Optionally, add a list of detected mutations per cell (where VAF > 0)
     detected_mask = vaf_matrix_cells_variants > 0
     adata_new.obs["mutations"] = [list(variant_index[detected_mask[i]]) for i in range(detected_mask.shape[0])]
-    return adata_new
+
+    # Copy all new .obs columns to the input AnnData object's .obs (using reindex for alignment)
+    for col in adata_new.obs.columns:
+        if col not in adata.obs.columns:
+            adata.obs[col] = adata_new.obs[col].reindex(adata.obs.index)
+    ##Return adata_new did work!
+    return adata
