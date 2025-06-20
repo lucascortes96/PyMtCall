@@ -30,5 +30,8 @@ adata_new = process_and_integrate_variants('input_folder', adata)
 - scanpy
 - scipy
 
+## Examples 
+- Please go to examples/ to find usage 
+
 ## License
 MIT
