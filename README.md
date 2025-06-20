@@ -7,7 +7,7 @@ This package provides functions for efficient single-cell ATAC-seq mitchondrial 
 Clone the repository and install with pip:
 
 ```bash
-pip install .
+pip install git+https://github.com/lucascortes96/PyMtCall
 ```
 
 ## Usage Example
