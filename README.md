@@ -20,7 +20,7 @@ adata = sc.read_h5ad('your_data.h5ad')
 adata_new = process_and_integrate_variants('input_folder', adata)
 ```
 
-- `input_folder` should contain your allele count, refAllele, and coverage files.
+- `input_folder` should contain your MGATK output; allele count, refAllele, and coverage files.
 - The resulting `adata_new` will have variant and VAF information integrated for downstream analysis.
 
 ## Requirements
