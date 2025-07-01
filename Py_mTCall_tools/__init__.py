@@ -10,5 +10,3 @@ from .variant_calling import (
     identify_variants,
     process_and_integrate_variants,
 )
-
-__version__ = "0.1.0"

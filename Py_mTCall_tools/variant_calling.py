@@ -200,8 +200,9 @@ def identify_variants(counts_df, refallele_df, coverage, low_coverage_threshold=
         'strand_concordance': strand_concordance
     })
     # For each pos and cell, check if both strands are >2
-    mask = pivoted >= 2
-    both_strands = mask.groupby(level=['allele', 'pos']).transform('all')  # True only if both for and rev are >2
+    mask = pd.DataFrame((pivoted >= 2).values, index=pivoted.index, columns=pivoted.columns, dtype=bool)
+    both_strands = mask.groupby(level=['allele', 'pos']).transform('all')
+
     # Set values to NaN where not both >2
     filtered = pivoted.where(both_strands)
     # Reset index and merge meta columns back using all unique identifying columns
