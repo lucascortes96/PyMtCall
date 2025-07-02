@@ -5,6 +5,7 @@ import numpy as np
 from scipy.sparse import coo_matrix
 import anndata
 import warnings
+from pandas.arrays import SparseArray
 
 def read_allele_file(path, allele):
     """
@@ -199,12 +200,24 @@ def identify_variants(counts_df, refallele_df, coverage, low_coverage_threshold=
         'pos': allele_pos_index.get_level_values('pos'),
         'strand_concordance': strand_concordance
     })
-    # For each pos and cell, check if both strands are >2
-    mask = pd.DataFrame((pivoted >= 2).values, index=pivoted.index, columns=pivoted.columns, dtype=bool)
-    both_strands = mask.groupby(level=['allele', 'pos']).transform('all')
-
-    # Set values to NaN where not both >2
-    filtered = pivoted.where(both_strands)
+    # For each pos and cell, check if both strands are >=2
+    # More efficient approach: work directly with dense data for this filtering step
+    # Note: Converting to dense here is necessary due to pandas sparse array limitations
+    # with groupby/transform operations. Since downstream operations (reset_index, merge, 
+    # groupby) would convert to dense anyway, this is more honest and avoids the overhead
+    # of trying to maintain sparsity through incompatible operations.
+    
+    # Convert to dense for the filtering operation
+    pivoted_dense = pivoted.sparse.to_dense() if hasattr(pivoted, 'sparse') else pivoted
+    
+    # Create mask for counts >= 2
+    mask_ge_2 = (pivoted_dense >= 2)
+    
+    # Group by (allele, pos) and check if all strands have >= 2 counts
+    both_strands = mask_ge_2.groupby(level=['allele', 'pos']).transform('all').astype(bool)
+    
+    # Set values to NaN where not both strands >=2
+    filtered = pivoted_dense.where(both_strands)
     # Reset index and merge meta columns back using all unique identifying columns
     filtered = filtered.reset_index()
     filtered = pd.merge(filtered, variants[meta_cols], on=['allele', 'pos', 'strand'], how='left')
@@ -339,5 +352,24 @@ def process_and_integrate_variants(input_folder, adata, vaf_layer_name="vaf", su
     for col in adata_new.obs.columns:
         if col not in adata.obs.columns:
             adata.obs[col] = adata_new.obs[col].reindex(adata.obs.index)
-    ##Return adata_new did work!
+    
+    # Store variant information in .uns (unstructured data) since .var has different dimensions
+    adata.uns['variant_info'] = adata_new.var.copy()
+    adata.uns['variant_names'] = adata_new.var.index.tolist()
+    
+    # Store VAF matrix in obsm since it has different dimensions than the main X matrix
+    # VAF matrix: (cells, variants) - this preserves the cell-variant relationship
+    # Ensure we have the right dimensions by reindexing to match original adata
+    vaf_matrix_full_cells = np.zeros((len(adata.obs), vaf_matrix_cells_variants.shape[1]))
+    var_matrix_full_cells = np.zeros((len(adata.obs), var_matrix_cells.shape[1]))
+    
+    # Map the matching cells back to their positions in the original adata
+    matching_cell_positions = [adata.obs.index.get_loc(cell) for cell in matching_cells]
+    vaf_matrix_full_cells[matching_cell_positions, :] = vaf_matrix_cells_variants
+    var_matrix_full_cells[matching_cell_positions, :] = var_matrix_cells
+    
+    adata.obsm[f'{vaf_layer_name}_matrix'] = vaf_matrix_full_cells
+    adata.obsm[f'variant_count_matrix'] = var_matrix_full_cells
+    
     return adata
+    
