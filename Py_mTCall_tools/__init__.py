@@ -10,3 +10,13 @@ from .variant_calling import (
     identify_variants,
     process_and_integrate_variants,
 )
+
+from .clonotype_analysis import (
+    cluster_clonotypes,
+    find_clonotypes,
+    plot_clonotype_heatmap,
+    analyze_clonotypes_from_variants,
+    plot_clonotype_vaf_heatmap,
+    get_variant_confidence_summary,
+    set_if_null,
+)
