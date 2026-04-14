@@ -269,71 +269,10 @@ def find_clonotypes(adata, layer=None, features=None, metric='cosine',
     
     return adata
 
-def plot_clonotype_heatmap(adata, layer=None, group_by=None, features=None, 
-                          figsize=(10, 8), cmap='viridis', save=None):
-    """
-    Plot a heatmap of clonotype allele frequencies.
-    
-    Args:
-        adata (anndata.AnnData): AnnData object with clonotype assignments
-        layer (str, optional): Layer to use for plotting. If None, uses adata.X
-        group_by (str, optional): Column in adata.obs for grouping. If None, uses clonotype assignments
-        features (list, optional): Features to include in heatmap. If None, uses all features
-        figsize (tuple): Figure size
-        cmap (str): Colormap for heatmap
-        save (str, optional): Path to save figure
-    
-    Returns:
-        matplotlib figure
-    """
-    
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    
-    # Get clustering results
-    hc_results = cluster_clonotypes(adata, layer=layer, group_by=group_by)
-    
-    # Get feature and group orders from hierarchical clustering
-    from scipy.cluster.hierarchy import leaves_list
-    feature_order = leaves_list(hc_results['features'])
-    group_order = leaves_list(hc_results['cells'])
-    
-    # Reorder the group means matrix
-    ordered_means = hc_results['group_means'][feature_order, :][:, group_order]
-    
-    # Create labels
-    if features is not None:
-        feature_labels = [f for f in features if f in adata.var_names]
-    else:
-        feature_labels = list(adata.var_names)
-    
-    ordered_feature_labels = [feature_labels[i] for i in feature_order]
-    ordered_group_labels = [str(hc_results['groups'][i]) for i in group_order]
-    
-    # Create heatmap
-    fig, ax = plt.subplots(figsize=figsize)
-    
-    sns.heatmap(ordered_means, 
-                xticklabels=ordered_group_labels,
-                yticklabels=ordered_feature_labels,
-                cmap=cmap, 
-                ax=ax,
-                cbar_kws={'label': 'Mean Allele Frequency'})
-    
-    ax.set_xlabel('Clonotypes')
-    ax.set_ylabel('Variants')
-    ax.set_title('Clonotype Allele Frequency Heatmap')
-    
-    plt.tight_layout()
-    
-    if save:
-        plt.savefig(save, dpi=300, bbox_inches='tight')
-    
-    return fig
 
-def analyze_clonotypes_from_variants(adata, vaf_layer_name="vaf", min_cells=10, 
+def analyze_clonotypes_from_variants(adata, vaf_layer_name="vaf", min_cells=1, 
                                    min_vaf=0.1, min_coverage=20, min_strand_concordance=0.3,
-                                   max_variance=0.1, resolution=1.0, k=10):
+                                   max_variance=1, resolution=1.0, k=10):
     """
     Perform clonotype analysis using only confidently detected variants.
     
@@ -354,25 +293,24 @@ def analyze_clonotypes_from_variants(adata, vaf_layer_name="vaf", min_cells=10,
     Returns:
         anndata.AnnData: Updated AnnData object with clonotype assignments
     """
-    
+    '''
     # Check if we have the VAF matrix from variant calling
     vaf_matrix_key = f'{vaf_layer_name}_matrix'
     if vaf_matrix_key not in adata.obsm:
         raise ValueError(f"VAF matrix '{vaf_matrix_key}' not found in adata.obsm. "
                         "Please run process_and_integrate_variants first.")
+    '''
     
     # Get VAF matrix
-    vaf_matrix = adata.obsm[vaf_matrix_key]
+    vaf_matrix = adata.obsm['variant_vaf']
     
     # Filter variants based on confidence criteria
-    if 'variant_info' in adata.uns:
-        variant_info = adata.uns['variant_info']
+    if 'variant_summary' in adata.uns:
+        variant_info = adata.uns['variant_summary']
         variant_names = adata.uns['variant_names']
         
         # Apply multiple confidence filters
         confidence_filters = {
-            'min_cells_confident': variant_info['n_cells_conf_detected'] >= min_cells,
-            'min_cells_high_vaf': variant_info['n_cells_over_5'] >= min_cells,
             'sufficient_coverage': variant_info['mean_coverage'] >= min_coverage,
             'strand_concordance': (variant_info['strand_concordance'] >= min_strand_concordance) | 
                                  variant_info['strand_concordance'].isna(),  # Accept NaN (single-strand variants)
@@ -396,7 +334,7 @@ def analyze_clonotypes_from_variants(adata, vaf_layer_name="vaf", min_cells=10,
         print(f"\nFinal selection: Using {len(selected_variants)} high-confidence variants for clonotype analysis")
         print(f"Filtering criteria applied:")
         print(f"  - Confidently detected in >= {min_cells} cells")
-        print(f"  - VAF >= {min_vaf:.1%} in >= {min_cells} cells") 
+        print(f"  - VAF >= {min_vaf} in >= {min_cells} cells") 
         print(f"  - Mean coverage >= {min_coverage}x")
         print(f"  - Strand concordance >= {min_strand_concordance} (or single-strand)")
         print(f"  - VAF variance <= {max_variance}")
@@ -489,12 +427,9 @@ def plot_clonotype_vaf_heatmap(adata, vaf_layer_name="vaf", clonotype_col="clono
     import matplotlib.pyplot as plt
     import seaborn as sns
     
-    # Get VAF matrix
-    vaf_matrix_key = f'{vaf_layer_name}_matrix'
-    if vaf_matrix_key not in adata.obsm:
-        raise ValueError(f"VAF matrix '{vaf_matrix_key}' not found")
     
-    vaf_matrix = adata.obsm[vaf_matrix_key]
+    
+    vaf_matrix = adata.obsm['variant_vaf']
     
     # Get variant names
     if 'variant_names' in adata.uns:
@@ -550,110 +485,5 @@ def set_if_null(x, y):
     """Set x to y if x is None, otherwise return x."""
     return y if x is None else x
 
-# Example usage of clonotype analysis functions
-def example_clonotype_analysis():
-    """
-    Example showing how to use the clonotype analysis functions
-    with the variant calling workflow.
-    """
-    
-    # This assumes you have already run:
-    # 1. process_and_integrate_variants() to get variant data
-    # 2. Have an AnnData object with VAF information
-    
-    # Import the clonotype analysis functions
-    from Py_mTCall_tools import (
-        analyze_clonotypes_from_variants,
-        plot_clonotype_vaf_heatmap,
-        cluster_clonotypes,
-        find_clonotypes
-    )
-    
-    # Example workflow:
-    
-    # Step 1: Run variant calling (assuming this is already done)
-    # input_folder = "path/to/variant/files"
-    # adata = process_and_integrate_variants(input_folder, adata)
-    
-    # Step 2: Analyze clonotypes based on variant allele frequencies
-    # adata = analyze_clonotypes_from_variants(
-    #     adata, 
-    #     vaf_layer_name="vaf",
-    #     min_cells=5,          # Require variant in at least 5 cells
-    #     min_vaf=0.05,         # Minimum 5% VAF
-    #     resolution=1.0,       # Clustering resolution
-    #     k=10                  # Number of neighbors
-    # )
-    
-    # Step 3: Visualize clonotype VAF patterns
-    # fig = plot_clonotype_vaf_heatmap(
-    #     adata,
-    #     vaf_layer_name="vaf",
-    #     clonotype_col="clonotype_leiden",
-    #     top_variants=50,
-    #     figsize=(12, 10),
-    #     save="clonotype_vaf_heatmap.pdf"
-    # )
-    
-    # Step 4: Access clonotype statistics
-    # clonotype_stats = adata.uns['clonotype_stats']
-    # print("Clonotype statistics:")
-    # print(clonotype_stats)
-    
-    # Step 5: Optional - manual clustering with custom parameters
-    # For more control, you can use the lower-level functions:
-    # hc_results = cluster_clonotypes(adata, layer="vaf_matrix", group_by="clonotype_leiden")
-    # adata = find_clonotypes(adata, layer="vaf_matrix", resolution=0.5, k=15)
-    
-    print("Example clonotype analysis workflow completed!")
-    print("Key functions:")
-    print("- analyze_clonotypes_from_variants(): Main function for clonotype analysis")
-    print("- plot_clonotype_vaf_heatmap(): Visualize VAF patterns across clonotypes") 
-    print("- cluster_clonotypes(): Hierarchical clustering of clonotypes")
-    print("- find_clonotypes(): Graph-based clustering with neighbor graph")
 
-# Note: To run the example, call example_clonotype_analysis() manually
-# example_clonotype_analysis()
 
-def get_variant_confidence_summary(adata, vaf_layer_name="vaf"):
-    """
-    Get a summary of variant confidence metrics for quality assessment.
-    
-    Args:
-        adata (anndata.AnnData): AnnData object with variant data
-        vaf_layer_name (str): Name of the VAF layer
-        
-    Returns:
-        pd.DataFrame: Summary of variant confidence metrics
-    """
-    
-    if 'variant_info' not in adata.uns:
-        print("No variant confidence info available")
-        return None
-    
-    variant_info = adata.uns['variant_info']
-    
-    summary = pd.DataFrame({
-        'metric': [
-            'Total variants',
-            'Mean cells confident detection',
-            'Mean cells VAF >5%',
-            'Mean cells VAF >10%', 
-            'Mean cells VAF >50%',
-            'Mean coverage depth',
-            'Mean strand concordance',
-            'Mean VAF variance'
-        ],
-        'value': [
-            len(variant_info),
-            variant_info['n_cells_conf_detected'].mean(),
-            variant_info['n_cells_over_5'].mean(),
-            variant_info['n_cells_over_10'].mean(),
-            variant_info['n_cells_over_50'].mean(), 
-            variant_info['mean_coverage'].mean(),
-            variant_info['strand_concordance'].mean(),
-            variant_info['variance'].mean()
-        ]
-    })
-    
-    return summary
