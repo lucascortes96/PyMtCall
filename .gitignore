@@ -302,4 +302,7 @@ yarn-error.log*
 
 # Don't include test files
 tests/*.txt
+tests/csv_outputs/*.csv
 
+#Don't include benchmarking
+Benchmarking/
