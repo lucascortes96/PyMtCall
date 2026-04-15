@@ -304,5 +304,6 @@ yarn-error.log*
 tests/*.txt
 tests/csv_outputs/*.csv
 
-#Don't include benchmarking
+#Don't include benchmarking or agents
 Benchmarking/
+.github
