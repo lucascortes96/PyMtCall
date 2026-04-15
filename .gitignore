@@ -290,5 +290,16 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Key files
 *.pub
 *key*
+
+# Powerpoints
+*.ppt
+*.pptx
+*ppt*
+
+# Don't include test files
+tests/*.txt
+
