@@ -16,7 +16,7 @@ Fast Variant Calling -
 """
 
 """
-List of 'fake' mitochondrial variants as per the brilliant Gavin Hudson:
+List of 'fake' mitochondrial variants as per the brilliant Prof Gavin Hudson:
 
 3107N>C
 301:302
@@ -179,7 +179,7 @@ def identify_variants_fast(counts_df, refallele_df, coverage, min_strand_count=2
     
     # NO VARIANT LIMITING - Process all variants found
     if verbose and len(variants) > 50000:
-        print(f"Processing all {len(variants)} variant observations (no artificial limits)")
+        print(f"Processing all {len(variants)} variant observations, this could take a while...")
     
     # Check for positions in variants but not in coverage
     variant_positions = set(variants['pos'].unique())
@@ -559,7 +559,13 @@ def process_variants_fast(input_folder: str,
     cov_subset = actual_coverage_matrix[:, cell_indices]
     
     # Store in AnnData efficiently, fix to make variant names the correct way round 
-    variant_names = summary_df[["ref", "pos", "allele"]].astype(str).agg("-".join, axis=1).tolist()
+    variant_names = (
+    summary_df[["ref", "pos", "allele"]]
+    .astype(str)
+    .apply(lambda col: col.str.upper())
+    .agg("-".join, axis=1)
+    .tolist()
+    )
 
 
     adata.uns['variant_summary'] = summary_df[["variance", "n_cells_conf_detected", "n_cells_over_5", "n_cells_over_10", "n_cells_over_50", "mean_coverage", "strand_concordance", "vaf_overall"]].copy()
@@ -581,7 +587,7 @@ def process_variants_fast(input_folder: str,
     # Store matrices in obsm (these should be 2D: cells x variants)
     adata.obsm['variant_vaf'] = vaf_full.values
     adata.obsm['variant_counts'] = var_full.values
-    adata.obsm['coverage_per_cell'] = cov_full.values  # NEW: Coverage per variant per cell
+    adata.obsm['coverage_per_cell'] = cov_full.values  #Coverage per variant per cell
     adata.obsm['variant_confident'] = conf_full.values
 
     
@@ -596,10 +602,6 @@ def process_variants_fast(input_folder: str,
     return adata
 
 
-# Backwards compatibility
-def process_and_integrate_variants(input_folder, adata, **kwargs):    
-    """Drop-in replacement for original function"""
-    return process_variants_fast(input_folder, adata, **kwargs)
 
 
 if __name__ == "__main__":
