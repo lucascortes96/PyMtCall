@@ -114,11 +114,8 @@ def check_false_negatives(file_path, position, min_reads, base):
             for cell in cells
         )
 
-        # Keep cells appearing in exactly one adequately covered allele set
-        unique_cells = [
-            cell for cell, count in counts.items()
-            if count == 1
-        ]
+        # Keep cells with adequate coverage in one or more non-mutant allele sets
+        unique_cells = set().union(*covered_cells.values())
         return pd.DataFrame(unique_cells, columns=["cell"])
 
     except Exception as e:
