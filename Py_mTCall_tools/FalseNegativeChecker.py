@@ -13,36 +13,44 @@ from os import path
 
 
 ##Checking false negative rate for ref allele
-def check_false_negatives(file_path, position, min_reads):
-    """Identify cells with adequate coverage at a given mtDNA position for
-    exactly one of the alleles (A, C, G or T), suggesting potential false negatives
-    due to insufficient coverage on the other allele(s).
+def check_false_negatives(file_path, position, min_reads, base):
+    
+    """Identify cells with adequate bidirectional coverage for exactly one
+    of the three alleles other than the specified base at a given mtDNA
+    position, helping characterise potential false-negative candidates.
 
     Parameters:
-            file_path (str): Directory containing ``mgatk.A.txt.gz``, ``mgatk.C.txt.gz``,
-                    ``mgatk.G.txt.gz`` and ``mgatk.T.txt.gz``.
-            position (int): mtDNA coordinate to evaluate (e.g., ``3243``).
-            min_reads (int): Minimum reads required on both forward and reverse
-                    strands for a cell to be considered adequately covered.
+        file_path (str): Directory containing ``mgatk.A.txt.gz``,
+            ``mgatk.C.txt.gz``, ``mgatk.G.txt.gz`` and ``mgatk.T.txt.gz``.
+        position (int): mtDNA coordinate to evaluate (e.g., ``3243``).
+        min_reads (int): Minimum reads required on both forward and reverse
+            strands for a cell to be considered adequately covered.
+        base (str): Allele to exclude from the analysis, typically the mutant
+            allele (A, C, G or T).
 
     Input files format:
-            - ``mgatk.A.txt.gz``, ``mgatk.C.txt.gz``, ``mgatk.G.txt.gz``, ``mgatk.T.txt.gz``:
-              gzip-compressed CSV with columns ``pos, cell, forw, rev``
-            - ``pos``: mtDNA position
-            - ``cell``: cell barcode
-            - ``forw``/``rev``: read counts on forward and reverse strands
+        - ``mgatk.A.txt.gz``, ``mgatk.C.txt.gz``, ``mgatk.G.txt.gz``,
+        ``mgatk.T.txt.gz`` (or uncompressed ``.txt`` equivalents).
+        - Each file contains columns ``pos, cell, forw, rev``.
 
     Returns:
-            pandas.DataFrame: Single-column DataFrame (``cell``) listing barcodes
-            present in exactly one adequately covered allele set.
+        pandas.DataFrame: Single-column DataFrame (``cell``) listing barcodes
+        with adequate coverage for exactly one of the three alleles other
+        than ``base`` at the specified position.
 
     Notes:
-            - Coverage criterion: ``forw >= min_reads`` AND ``rev >= min_reads``.
-            - The result uses the symmetric difference between the adequately
-                covered allele cell sets:
-                    * Cells present in more than one set are not flagged.
-                    * Cells present in exactly one set are candidates for false negatives.
+        - Adequate coverage requires ``forw >= min_reads`` AND
+        ``rev >= min_reads``.
+        - The specified ``base`` is excluded from the coverage comparison.
+        - Cells are flagged if they appear in exactly one of the three
+        remaining allele sets; cells appearing in zero, two or three
+        sets are not returned.
+        - The output characterises alternative-allele coverage in cells
+        assessed separately for coverage of the excluded allele. It does
+        not independently confirm a cell's genotype or determine whether
+        a false-negative variant call occurred.
     """
+
 
     def allele_file(base):
         for suffix in (".txt.gz", ".txt"):
@@ -73,20 +81,45 @@ def check_false_negatives(file_path, position, min_reads):
                            names=["pos", "cell", "forw", "rev"],
                            on_bad_lines="skip")
 
-        pos_A = df_A[(df_A["pos"] == position) & (df_A["forw"] >= min_reads) & (df_A["rev"] >= min_reads)]
-        pos_C = df_C[(df_C["pos"] == position) & (df_C["forw"] >= min_reads) & (df_C["rev"] >= min_reads)]
-        pos_G = df_G[(df_G["pos"] == position) & (df_G["forw"] >= min_reads) & (df_G["rev"] >= min_reads)]
-        pos_T = df_T[(df_T["pos"] == position) & (df_T["forw"] >= min_reads) & (df_T["rev"] >= min_reads)]
+        base = base.upper()
+        if base not in {"A", "C", "G", "T"}:
+            raise ValueError("base must be one of A, C, G, or T")
 
-        unique_cells = (
-            set(pos_A["cell"])
-            ^ set(pos_C["cell"])
-            ^ set(pos_G["cell"])
-            ^ set(pos_T["cell"])
+        allele_dfs = {
+            "A": df_A,
+            "C": df_C,
+            "G": df_G,
+            "T": df_T,
+        }
+
+        covered_cells = {}
+
+        for allele, df in allele_dfs.items():
+            if allele == base:
+                continue
+
+            filtered = df[
+                (df["pos"] == position)
+                & (df["forw"] >= min_reads)
+                & (df["rev"] >= min_reads)
+            ]
+            covered_cells[allele] = set(filtered["cell"])
+
+        # Count how many non-mutant allele sets each cell appears in
+        from collections import Counter
+
+        counts = Counter(
+            cell
+            for cells in covered_cells.values()
+            for cell in cells
         )
 
-        unique_cells_df = pd.DataFrame(unique_cells, columns=["cell"])
-        return unique_cells_df
+        # Keep cells appearing in exactly one adequately covered allele set
+        unique_cells = [
+            cell for cell, count in counts.items()
+            if count == 1
+        ]
+        return pd.DataFrame(unique_cells, columns=["cell"])
 
     except Exception as e:
         raise FileNotFoundError(
